@@ -131,6 +131,11 @@ const AppRouter = () => (
           <DealsPage />
         </ProtectedRoute>
       } />
+      <Route path="/campaigns" element={
+        <ProtectedRoute>
+          <Campaigns />
+        </ProtectedRoute>
+      } />
       <Route path="/action-items" element={
         <ProtectedRoute>
           <ActionItems />
