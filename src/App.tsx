@@ -12,6 +12,7 @@ import Accounts from "./pages/Accounts";
 import Contacts from "./pages/Contacts";
 // Leads module removed - leads are now managed under Deals Lead stage
 import DealsPage from "./pages/DealsPage";
+import Campaigns from "./pages/Campaigns";
 import ActionItems from "./pages/ActionItems";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
