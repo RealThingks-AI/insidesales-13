@@ -8,7 +8,8 @@ import {
   PinOff,
   Bell,
   CheckSquare,
-  Building2
+  Building2,
+  Megaphone
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
