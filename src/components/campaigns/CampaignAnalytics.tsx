@@ -92,16 +92,16 @@ export function CampaignAnalytics({ campaignId }: Props) {
   };
 
   const emails = communications.filter((c) => c.communication_type === "Email");
-  const emailsSent = emails.filter(e => {
-    if (e.sent_via === "manual") return e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-    return e.delivery_status === "sent" || e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-  });
-  const emailsDelivered = emails.filter(e => {
-    if (e.sent_via === "manual") return e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied" || e.email_status === "Sent";
-    return e.delivery_status === "sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-  });
-  const emailsBounced = emails.filter(e => e.delivery_status === "failed" || e.email_status === "Bounced");
+  const providerEmails = emails.filter(e => e.sent_via !== "manual");
+  const manualEmails = emails.filter(e => e.sent_via === "manual");
+  
+  // For analytics, only count provider-sent emails as truly "sent"
+  const emailsSent = providerEmails.filter(e => e.delivery_status === "sent");
+  const emailsDelivered = providerEmails.filter(e => e.delivery_status === "sent");
+  const emailsBounced = providerEmails.filter(e => e.delivery_status === "failed" || e.email_status === "Bounced");
   const emailsReplied = emails.filter(e => e.email_status === "Replied");
+  // Include manual "Sent" logs in total sent count for display but label separately
+  const totalEmailsLogged = emailsSent.length + manualEmails.filter(e => e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied").length;
   const calls = communications.filter((c) => c.communication_type === "Call" || c.communication_type === "Phone");
   const linkedIn = communications.filter((c) => c.communication_type === "LinkedIn");
   const responded = contacts.filter((c) => c.stage === "Responded" || c.stage === "Qualified");
@@ -111,7 +111,7 @@ export function CampaignAnalytics({ campaignId }: Props) {
   const stats = [
     { label: "Accounts Targeted", value: accounts.length, icon: Building2 },
     { label: "Contacts Targeted", value: contacts.length, icon: Users },
-    { label: "Emails Sent", value: emailsSent.length, icon: Send },
+    { label: "Emails Sent", value: totalEmailsLogged, icon: Send },
     { label: "Calls Made", value: calls.length, icon: Phone },
     { label: "LinkedIn Messages", value: linkedIn.length, icon: MessageSquare },
     { label: "Responses", value: responded.length, icon: TrendingUp },
@@ -129,11 +129,12 @@ export function CampaignAnalytics({ campaignId }: Props) {
   ];
 
   const emailMetrics = useMemo(() => [
-    { name: "Sent", value: emailsSent.length, fill: "#6366f1" },
+    { name: "Sent (Provider)", value: emailsSent.length, fill: "#6366f1" },
+    { name: "Logged (Manual)", value: manualEmails.length, fill: "#94a3b8" },
     { name: "Delivered", value: emailsDelivered.length, fill: "#10b981" },
     { name: "Replied", value: emailsReplied.length, fill: "#8b5cf6" },
-    { name: "Bounced", value: emailsBounced.length, fill: "#ef4444" },
-  ], [emailsSent.length, emailsDelivered.length, emailsReplied.length, emailsBounced.length]);
+    { name: "Failed", value: emailsBounced.length, fill: "#ef4444" },
+  ], [emailsSent.length, manualEmails.length, emailsDelivered.length, emailsReplied.length, emailsBounced.length]);
 
   const channelData = useMemo(() => {
     return [
@@ -284,7 +285,7 @@ export function CampaignAnalytics({ campaignId }: Props) {
         <Card className="border">
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Email Delivery Metrics</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               {emailMetrics.map(m => (
                 <div key={m.name} className="text-center">
                   <p className="text-2xl font-semibold" style={{ color: m.fill }}>{m.value}</p>
