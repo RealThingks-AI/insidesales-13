@@ -285,7 +285,7 @@ export function CampaignAnalytics({ campaignId }: Props) {
         <Card className="border">
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" /> Email Delivery Metrics</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               {emailMetrics.map(m => (
                 <div key={m.name} className="text-center">
                   <p className="text-2xl font-semibold" style={{ color: m.fill }}>{m.value}</p>
