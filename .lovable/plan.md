@@ -1,82 +1,53 @@
 
+Goal: make campaign emails use the same working email path the project already relies on, and stop showing “sent” when nothing was actually delivered.
 
-## Deep Check: Campaign Module — Bugs & Improvements Found
+What I found
+- Campaign email sending is isolated in `supabase/functions/send-campaign-email/index.ts` and is hardcoded to Microsoft Graph/Azure.
+- The campaign compose UI calls only that function from `src/components/campaigns/EmailComposeModal.tsx`.
+- Manual outreach logging in `src/components/campaigns/CampaignCommunications.tsx` writes directly to `campaign_communications` with `sent_via = "manual"` and can still show statuses like “Sent”, which is misleading.
+- Existing reminder emails in `supabase/functions/daily-action-reminders/index.ts` also use Microsoft Graph, so the “existing configured email service” in code is Microsoft Graph.
+- However, there is currently no configured project email domain and no runtime secrets available, so there is no active sender configuration available to reuse right now.
+- The Email Center UI reads from `email_history`, but campaign sends only insert minimal rows there and do not integrate with the richer delivery fields the UI expects.
 
-### Bugs
+Implementation plan
+1. Unify campaign sending with the existing sender utility
+- Extract the Microsoft Graph token/send logic into a shared helper under `supabase/functions/_shared/` so both `daily-action-reminders` and `send-campaign-email` use the same code path.
+- Make `send-campaign-email` use that shared helper instead of maintaining separate Azure-specific logic.
 
-**1. "Phone" vs "Call" communication_type inconsistency (HIGH)**
-The DB has records with `communication_type = 'Phone'` (from older/external code) but the UI and analytics only filter for `'Call'`. These "Phone" records are invisible in the Outreach list (they show but don't match the channel filter), uncounted in Analytics (calls count), and don't trigger the correct stage rank logic.
+2. Harden send result handling
+- Treat only a real provider success response as sent.
+- Return structured failure reasons from the function.
+- Write richer failure details into `campaign_communications` and `email_history` so the UI can show what happened.
 
-**Fix**: In `CampaignAnalytics.tsx` line 99 and `CampaignCommunications.tsx` line 246, include both `"Call"` and `"Phone"` when filtering for call-type communications. Also update the channel filter dropdown to treat "Phone" as "Call", and the channel badge to handle "Phone".
+3. Fix misleading campaign UI states
+- In `EmailComposeModal`, surface provider errors clearly instead of generic “Unknown error”.
+- In `CampaignCommunications`, visually separate:
+  - Sent via provider
+  - Logged manually
+  - Failed delivery
+- Update badges/text so manual entries are never counted or displayed as actual delivered emails.
 
-**Files**: `CampaignAnalytics.tsx`, `CampaignCommunications.tsx`
+4. Fix campaign analytics logic
+- Update `src/components/campaigns/CampaignAnalytics.tsx` so manual logs are not counted as delivered/sent email performance.
+- Base email metrics on `delivery_status` and provider-backed records, not optimistic/manual statuses.
 
----
+5. Align Email Center visibility
+- Improve `email_history` writes from campaign sends so they match the Email Center’s expectations more closely.
+- Ensure failed campaign sends appear as failures and successful sends can be distinguished from true delivered/opened/replied states.
 
-**2. All manually logged communications have `delivery_status: 'pending'` (MEDIUM)**
-When manually logging outreach (`handleLogCommunication`), line 141 sets `delivery_status` to `"manual"` only for Email type. For Call and LinkedIn, `delivery_status` is set to `null`. But the DB default is `'pending'`, so all non-email logs show "pending" delivery badges in the list view — misleading for Call/LinkedIn entries that don't have a "delivery" concept.
+6. Sender configuration follow-up
+- Since no runtime secrets are currently configured, I’ll keep the code wired to the existing Microsoft Graph path and make it fail clearly until the current sender credentials are present.
+- If you want, after approval I can also add a small admin-side status indicator that tells you whether campaign email sending is currently configured.
 
-**Fix**: Set `delivery_status: null` explicitly for Call and LinkedIn in the insert (line 141). Also update the `deliveryBadge` function to return null for Call/LinkedIn types.
+Files likely to change
+- `supabase/functions/send-campaign-email/index.ts`
+- `supabase/functions/daily-action-reminders/index.ts`
+- `src/components/campaigns/EmailComposeModal.tsx`
+- `src/components/campaigns/CampaignCommunications.tsx`
+- `src/components/campaigns/CampaignAnalytics.tsx`
+- possibly a new shared helper under `supabase/functions/_shared/`
 
-**File**: `CampaignCommunications.tsx`
-
----
-
-**3. Region shows `[object Object]` for JSON array of objects (HIGH)**
-`CampaignOverview.tsx` line 274: When region is stored as `[{"country":"Germany","region":"Europe",...}]`, the parser does `r.join(", ")` on objects, producing `[object Object]`.
-
-**Fix**: Map array objects to readable strings: `r.map(item => typeof item === "object" ? [item.region, item.country].filter(Boolean).join(" — ") : String(item)).join(", ")`
-
-**File**: `CampaignOverview.tsx`
-
----
-
-**4. Edge function does NOT update contact stage after sending email (MEDIUM)**
-When sending email via the compose modal → edge function, the communication is logged with `sent_via: "azure"`, but `campaign_contacts.stage` is never advanced to "Email Sent". The stage update logic only runs in `handleLogCommunication` (manual logging). Emails sent via the compose modal skip this entirely.
-
-**Fix**: After `handleEmailSent` callback in `CampaignCommunications.tsx`, add contact stage update logic similar to manual logging. Or better: move stage update into the edge function itself so it always runs.
-
-**File**: `CampaignCommunications.tsx` (add stage update in `handleEmailSent`) or `send-campaign-email/index.ts`
-
----
-
-**5. Email compose toast uses `sonner` while rest of app uses `@/hooks/use-toast` (LOW)**
-`EmailComposeModal.tsx` imports `toast` from `"sonner"` (line 13), but `CampaignCommunications.tsx` uses `toast` from `"@/hooks/use-toast"`. This causes inconsistent toast styling — some toasts appear in different positions/styles.
-
-**Fix**: Standardize `EmailComposeModal.tsx` to use `@/hooks/use-toast`.
-
-**File**: `EmailComposeModal.tsx`
-
----
-
-**6. `delivery_status` default 'pending' causes incorrect email analytics (MEDIUM)**
-Analytics line 95: `emailsSent` checks `delivery_status === "sent"`, but manually logged emails have `delivery_status: 'pending'` (DB default) even when `email_status` is "Sent". The `||` fallback catches this, but `emailsDelivered` only checks `email_status` — manually logged emails with status "Sent" but not "Delivered" are excluded from delivered count. This is technically correct but confusing when all manual logs show "pending" delivery.
-
-**Fix**: For manually logged emails (`sent_via: 'manual'`), trust `email_status` field. For azure-sent emails, trust `delivery_status`.
-
-**File**: `CampaignAnalytics.tsx`
-
----
-
-### Improvements
-
-**7. No "Reply" action on sent emails (LOW)**
-Thread view shows emails but has no Reply button to compose a follow-up in the same thread. The `thread_id` and `parent_id` columns exist but are never populated.
-
-**Not fixing now** — requires additional threading logic.
-
----
-
-### Summary
-
-| # | Fix | File |
-|---|-----|------|
-| 1 | Handle "Phone" as "Call" everywhere | `CampaignAnalytics.tsx`, `CampaignCommunications.tsx` |
-| 2 | Fix delivery_status for non-email logs | `CampaignCommunications.tsx` |
-| 3 | Fix region `[object Object]` display | `CampaignOverview.tsx` |
-| 4 | Update contact stage after email send | `CampaignCommunications.tsx` |
-| 5 | Standardize toast import | `EmailComposeModal.tsx` |
-| 6 | Fix email analytics counting logic | `CampaignAnalytics.tsx` |
-
-6 files modified, 0 migrations, 0 edge function changes.
-
+Technical notes
+- The current issue is not just delivery; it is also state integrity. The app can record “sent” in campaign views even when an email was only logged manually or the provider path is not configured.
+- There is no Lovable email domain configured for this project and no runtime secrets currently present, so there is nothing active to switch over to automatically right now.
+- Best path is to consolidate around the already implemented Microsoft Graph sender logic, remove misleading UI assumptions, and make configuration errors explicit.
