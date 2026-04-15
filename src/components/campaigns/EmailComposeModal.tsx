@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Send, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Contact {
   contact_id: string;
@@ -114,7 +115,12 @@ export function EmailComposeModal({ open, onOpenChange, campaignId, contacts, pr
         onOpenChange(false);
         resetForm();
       } else {
-        toast.error(`Failed to send email: ${data?.error || "Unknown error"}`);
+        const errorDetail = data?.errorCode === "NOT_CONFIGURED"
+          ? "Email sending is not configured. Azure credentials are missing — contact your administrator."
+          : data?.errorCode === "AUTH_FAILED"
+          ? "Failed to authenticate with email provider. Check Azure credentials."
+          : `Failed to send email: ${data?.error || "Unknown error"}`;
+        toast.error(errorDetail);
       }
     } catch (err: any) {
       toast.error(`Error: ${err.message}`);
