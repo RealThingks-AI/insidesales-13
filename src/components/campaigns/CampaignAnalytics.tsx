@@ -92,16 +92,16 @@ export function CampaignAnalytics({ campaignId }: Props) {
   };
 
   const emails = communications.filter((c) => c.communication_type === "Email");
-  const emailsSent = emails.filter(e => {
-    if (e.sent_via === "manual") return e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-    return e.delivery_status === "sent" || e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-  });
-  const emailsDelivered = emails.filter(e => {
-    if (e.sent_via === "manual") return e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied" || e.email_status === "Sent";
-    return e.delivery_status === "sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied";
-  });
-  const emailsBounced = emails.filter(e => e.delivery_status === "failed" || e.email_status === "Bounced");
+  const providerEmails = emails.filter(e => e.sent_via !== "manual");
+  const manualEmails = emails.filter(e => e.sent_via === "manual");
+  
+  // For analytics, only count provider-sent emails as truly "sent"
+  const emailsSent = providerEmails.filter(e => e.delivery_status === "sent");
+  const emailsDelivered = providerEmails.filter(e => e.delivery_status === "sent");
+  const emailsBounced = providerEmails.filter(e => e.delivery_status === "failed" || e.email_status === "Bounced");
   const emailsReplied = emails.filter(e => e.email_status === "Replied");
+  // Include manual "Sent" logs in total sent count for display but label separately
+  const totalEmailsLogged = emailsSent.length + manualEmails.filter(e => e.email_status === "Sent" || e.email_status === "Delivered" || e.email_status === "Opened" || e.email_status === "Replied").length;
   const calls = communications.filter((c) => c.communication_type === "Call" || c.communication_type === "Phone");
   const linkedIn = communications.filter((c) => c.communication_type === "LinkedIn");
   const responded = contacts.filter((c) => c.stage === "Responded" || c.stage === "Qualified");
