@@ -568,6 +568,12 @@ export function CampaignCommunications({ campaignId, isCampaignEnded }: Props) {
       <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>
         <DialogContent className={`${logForm.communication_type === "Call" && phoneScripts.length > 0 ? "sm:max-w-[900px]" : "sm:max-w-[500px]"} max-h-[85vh] overflow-y-auto`}>
           <DialogHeader><DialogTitle>Log Outreach</DialogTitle></DialogHeader>
+          <div className="rounded-md border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 p-2.5 mb-2">
+            <p className="text-xs text-yellow-800 dark:text-yellow-300 flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              This only records activity — it does not send an email. Use "Send Email" to deliver an actual email.
+            </p>
+          </div>
           <div className={logForm.communication_type === "Call" && phoneScripts.length > 0 ? "grid grid-cols-2 gap-6" : ""}>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
