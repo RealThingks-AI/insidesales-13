@@ -111,7 +111,7 @@ export function CampaignAnalytics({ campaignId }: Props) {
   const stats = [
     { label: "Accounts Targeted", value: accounts.length, icon: Building2 },
     { label: "Contacts Targeted", value: contacts.length, icon: Users },
-    { label: "Emails Sent", value: emailsSent.length, icon: Send },
+    { label: "Emails Sent", value: totalEmailsLogged, icon: Send },
     { label: "Calls Made", value: calls.length, icon: Phone },
     { label: "LinkedIn Messages", value: linkedIn.length, icon: MessageSquare },
     { label: "Responses", value: responded.length, icon: TrendingUp },
@@ -129,11 +129,12 @@ export function CampaignAnalytics({ campaignId }: Props) {
   ];
 
   const emailMetrics = useMemo(() => [
-    { name: "Sent", value: emailsSent.length, fill: "#6366f1" },
+    { name: "Sent (Provider)", value: emailsSent.length, fill: "#6366f1" },
+    { name: "Logged (Manual)", value: manualEmails.length, fill: "#94a3b8" },
     { name: "Delivered", value: emailsDelivered.length, fill: "#10b981" },
     { name: "Replied", value: emailsReplied.length, fill: "#8b5cf6" },
-    { name: "Bounced", value: emailsBounced.length, fill: "#ef4444" },
-  ], [emailsSent.length, emailsDelivered.length, emailsReplied.length, emailsBounced.length]);
+    { name: "Failed", value: emailsBounced.length, fill: "#ef4444" },
+  ], [emailsSent.length, manualEmails.length, emailsDelivered.length, emailsReplied.length, emailsBounced.length]);
 
   const channelData = useMemo(() => {
     return [
